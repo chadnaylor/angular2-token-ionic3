@@ -133,8 +133,9 @@ export class Angular2TokenService implements CanActivate {
         github: 'auth/github'
       },
       oAuthCallbackPath: 'oauth_callback',
-      oAuthWindowType: 'newWindow',
+      oAuthWindowType: 'inAppBrowser',
       oAuthWindowOptions: null,
+      oAuthBrowserCallback: null,
 
       globalOptions: {
         headers: {
@@ -237,7 +238,7 @@ export class Angular2TokenService implements CanActivate {
         'location=no'
       );
       browser.on('loadstop').subscribe((ev: InAppBrowserEvent) => {
-        if (0 === ev.url.indexOf('URL HERE')) {
+        if (0 === ev.url.indexOf(this.atOptions.oAuthBrowserCallback)) {
           browser.executeScript({code: "requestCredentials();"})
             .then((credentials) => {
               // alert(JSON.stringify(credentials[0]));

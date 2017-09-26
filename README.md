@@ -1,9 +1,13 @@
 
 # Angular2-Token-Ionic3
 
+Token based authentication service for Ionic 3 Oauth inAppBrowser login (facebook, github, etc.). Basically just https://github.com/neroniaky/angular2-token with some logic added for ionic oauth.
+Angular2-Token-Ionic3 works best with the [devise token auth](https://github.com/lynndylanhurley/devise_token_auth) gem for Rails.
 
-Token based authentication service for Angular2 with multiple user support. Angular2-Token-Ionic3 works best with the [devise token auth](https://github.com/lynndylanhurley/devise_token_auth) gem for Rails.
-Angular2-Token-Ionic3 is currently in Alpha. Any contribution is much appreciated.
+Angular2-Token-Ionic3 is currently in Alpha. Use with caution.
+
+NOTE: This package is here to solve our immediate auth needs.
+Hope to merge into https://github.com/neroniaky/angular2-token once the changes are more thoroughly tested.
 
 
 ## Installation
@@ -40,11 +44,9 @@ Angular2-Token-Ionic3 is currently in Alpha. Any contribution is much appreciate
     ```
 
 ## Quickstart (αlpha)
-Quickstart includes the necessary forms and routing to quickly use Angular2-Token-Ionic3 with your Project. A live demo can be found [here](https://angular2-token.herokuapp.com/#/session/sign-in).
 
 Quickstart is currently in αlpha, please use with caution.
 
-![Quickstart](assets/quickstart.gif)
 
 1. Add `A2tUiModule` to your main module.
     ```javascript
@@ -134,6 +136,7 @@ constructor(private _tokenService: Angular2TokenService) {
         oAuthCallbackPath:          'oauth_callback',
         oAuthWindowType:            'newWindow',
         oAuthWindowOptions:         null,
+        oAuthBrowserCallback:       null,
 
         userTypes:                  null,
 
