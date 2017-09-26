@@ -22,7 +22,7 @@ Hope to merge into https://github.com/neroniaky/angular2-token once the changes 
 
 2. Import and add `Angular2TokenService` to your main module. `Angular2TokenService` depends on `HttpModule` and `RouterModule`, so make sure you import them too.
     ```javascript
-    import { Angular2TokenService } from 'angular2-token';
+    import { Angular2TokenService } from 'angular2-token-ionic3';
 
     @NgModule({
         imports: [
@@ -50,14 +50,13 @@ Quickstart is currently in αlpha, please use with caution.
 
 1. Add `A2tUiModule` to your main module.
     ```javascript
-    import { Angular2TokenService, A2tUiModule } from 'angular2-token';
+    import { Angular2TokenService } from 'angular2-token-ionic3';
 
     @NgModule({
         imports: [
             BrowserModule,
             HttpModule,
             RouterModule,
-            A2tUiModule
         ],
         declarations: [ AppComponent ],
         providers:    [ Angular2TokenService ],
@@ -65,16 +64,6 @@ Quickstart is currently in αlpha, please use with caution.
     })
     ```
 
-The `A2tUiModule` adds the following routes to your project:
-
-| Route                      | Description                              |
-| -------------------------- | ---------------------------------------- |
-| `session/sign-in`          | Sign in form                             |
-| `session/sign-up`          | Sign out form                            |
-| `session/reset-password`   | Reset password form                      |
-| `session/update-password`  | Update password for email redirect       |
-
-On successful sign in the user will be redirect to `restricted`.
 
 ## Content
 - [Configuration](#configuration)
@@ -97,11 +86,7 @@ On successful sign in the user will be redirect to `restricted`.
     - [`.currentUserType`](#currentusertype)
     - [`.currentUserData`](#currentuserdata)
     - [`.currentAuthData`](#currentauthdata)
-- [Common Problems](#commonproblems)
-- [Development](#development)
-    - [Testing](#testing)
-    - [Credits](#credits)
-    - [License](#license)
+
 
 ## Configuration
 Configuration options can be passed as `Angular2TokenOptions` via `.init()`.
@@ -134,7 +119,7 @@ constructor(private _tokenService: Angular2TokenService) {
             github:                 'auth/github'
         },
         oAuthCallbackPath:          'oauth_callback',
-        oAuthWindowType:            'newWindow',
+        oAuthWindowType:            'inAppBrowser',
         oAuthWindowOptions:         null,
         oAuthBrowserCallback:       null,
 
@@ -171,8 +156,10 @@ constructor(private _tokenService: Angular2TokenService) {
 | `oAuthBase?: string`                    | Configure the OAuth server (used for backends on a different url) |
 | `oAuthPaths?: { [key:string]: string }` | Sets paths for sign in with OAuth        |
 | `oAuthCallbackPath?:  string`           | Sets path for OAuth sameWindow callback  |
-| `oAuthWindowType?:`string`              | Window type for Oauth authentication     |
+| `oAuthWindowType?: string`              | Window type for Oauth authentication     |
 | `oAuthWindowOptions?: { [key:string]: string }` | Set additional options to pass into `window.open()` |
+| `oAuthBrowserCallback?:  string`        | Full url for the callback at the end of your server-side auth flow. e.g. `https://<YOUR API HERE>/auth/facebook/callback#_=_` |
+
 ### Global Options
 | Options                               | Description                                     |
 | ------------------------------------- | ----------------------------------------------- |
@@ -290,8 +277,13 @@ this._tokenService.resetPassword({
 ```
 
 ### .signInOAuth()
-Initiates OAuth authentication flow. Currently, it supports two window modes:
-`newWindow` (default) and `sameWindow` (settable in config as `oAuthWindowType`).
+Initiates OAuth authentication flow. Currently, it supports three window modes:
+`inAppBrowser` (default, for android and ios), `newWindow` (for desktop flow, falls back to this when running ionic
+serve) and `sameWindow` (settable in config as `oAuthWindowType`).
+
+- When `oAuthWindowType` is set to `inAppBrowser`, `.signInOAuth()` opens a new window and completes the login flow.
+Will return an observable in future.
+
 - When `oAuthWindowType` is set to `newWindow`, `.signInOAuth()` opens a new window and returns an observable.
 
 - When `oAuthWindowType` is set to `sameWindow`, `.signInOAuth()` returns nothing and redirects user to auth provider.
@@ -305,39 +297,9 @@ this route and call `processOAuthCallback()` to fetch `AuthData` from params.
 ```javascript
 this._tokenService.signInOAuth(
 'github'
-).subscribe(
-    res =>      console.log(res),
-    error =>    console.log(error)
 );
 ```
 
-### .processOAuthCallback()
-Fetches AuthData from params sent via OAuth redirection in `sameWindow` flow.
-
-`processOAuthCallback()`
-
-#### Example
-
-Callback route:
-```javascript
-RouterModule.forRoot([
-  { path: 'oauth_callback', component: OauthCallbackComponent }
-])
-```
-
-Callback component:
-```javascript
-@Component({
-  template: ''
-})
-export class OauthCallbackComponent implements OnInit {
-  constructor(private _tokenService: Angular2TokenService) {}
-
-  ngOnInit() {
-    this._tokenService.processOAuthCallback();
-  }
-}
-```
 
 ## HTTP Service Wrapper
 `Angular2TokenService` wraps all standard Angular2 Http Service calls for authentication and token processing.
