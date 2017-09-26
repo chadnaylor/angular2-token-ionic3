@@ -16,4 +16,6 @@ npm-debug.log
 # Ignore VSCode Config
 .vscode
 
+# idea
 .idea
+package-lock.json
