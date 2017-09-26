@@ -15,3 +15,5 @@ npm-debug.log
 
 # Ignore VSCode Config
 .vscode
+
+.idea

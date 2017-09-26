@@ -1,29 +1,19 @@
-![Angular2-Token](assets/angular2-token-logo.png)
 
-# Angular2-Token
+# Angular2-Token-Ionic3
 
-[![Greenkeeper badge](https://badges.greenkeeper.io/neroniaky/angular2-token.svg)](https://greenkeeper.io/)
-[![Join the chat at https://gitter.im/lynndylanhurley/devise_token_auth](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/angular2-token/Lobby)
-[![npm version](https://badge.fury.io/js/angular2-token.svg)](https://badge.fury.io/js/angular2-token)
-[![npm downloads](https://img.shields.io/npm/dt/angular2-token.svg)](https://npmjs.org/angular2-token)
-[![Build Status](https://travis-ci.org/neroniaky/angular2-token.svg?branch=master)](https://travis-ci.org/neroniaky/angular2-token)
-[![Angular 2 Style Guide](https://mgechev.github.io/angular2-style-guide/images/badge.svg)](https://angular.io/styleguide)
 
-Token based authentication service for Angular2 with multiple user support. Angular2-Token works best with the [devise token auth](https://github.com/lynndylanhurley/devise_token_auth) gem for Rails.
-Angular2-Token is currently in Alpha. Any contribution is much appreciated.
+Token based authentication service for Angular2 with multiple user support. Angular2-Token-Ionic3 works best with the [devise token auth](https://github.com/lynndylanhurley/devise_token_auth) gem for Rails.
+Angular2-Token-Ionic3 is currently in Alpha. Any contribution is much appreciated.
 
-You can try out Angular2-Token [here](https://angular2-token.herokuapp.com/).
-
-The repository can be found [here](https://github.com/neroniaky/angular2-token-example).
 
 ## Installation
 
 ### Requirements
 - Webpack (SystemJS not tested)
 
-1. Install Angular2-Token via NPM with
+1. Install Angular2-Token-Ionic3 via NPM with
     ```bash
-    npm install angular2-token
+    npm install angular2-token-ionic3
     ```
 
 2. Import and add `Angular2TokenService` to your main module. `Angular2TokenService` depends on `HttpModule` and `RouterModule`, so make sure you import them too.
@@ -50,7 +40,7 @@ The repository can be found [here](https://github.com/neroniaky/angular2-token-e
     ```
 
 ## Quickstart (αlpha)
-Quickstart includes the necessary forms and routing to quickly use Angular2-Token with your Project. A live demo can be found [here](https://angular2-token.herokuapp.com/#/session/sign-in).
+Quickstart includes the necessary forms and routing to quickly use Angular2-Token-Ionic3 with your Project. A live demo can be found [here](https://angular2-token.herokuapp.com/#/session/sign-in).
 
 Quickstart is currently in αlpha, please use with caution.
 
@@ -389,7 +379,7 @@ this._tokenService.currentUserType; // ADMIN
 ```
 
 ## Route Guards
-Angular2-Token implements the `CanActivate` interface, so it can directly be used as a route guard.
+Angular2-Token-Ionic3 implements the `CanActivate` interface, so it can directly be used as a route guard.
 If the `signInRedirect` option is set the user will be redirected on a failed (=false) CanActivate using `Router.navigate()`.
 It currently does not distinguish between user types.
 
@@ -479,22 +469,9 @@ More information can be found [here](https://github.com/lynndylanhurley/devise_t
 ### Missing Routes
 Make sure that your projects includes some kind of routing.
 
-## Development
-If the package is installed from Github specified in the package.json, you need to build the package locally.
-
-```bash
-cd ./node_modules/angular2-token
-npm install
-npm run build
-```
-
-### Testing
-```bash
-npm test
-```
 
 ### Credits
-Test config files based on [Angular2 Webpack Starter](https://github.com/AngularClass/angular2-webpack-starter) by AngularClass
+Ripped off almost entirely from https://github.com/neroniaky/angular2-token with some logic bits mashed about for ionic 3 oauth.
 
 ### License
-The MIT License (see the [LICENSE](https://github.com/neroniaky/angular2-token/blob/master/LICENSE) file for the full text)
+The MIT License (see the [LICENSE](https://github.com/chadnaylor/angular2-token-ionic3/blob/master/LICENSE) file for the full text)

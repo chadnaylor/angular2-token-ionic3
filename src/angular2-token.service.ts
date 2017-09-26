@@ -1,645 +1,686 @@
-import { Injectable, Optional } from '@angular/core';
-import { ActivatedRoute, Router, CanActivate } from '@angular/router';
+import {Injectable, Optional} from '@angular/core';
+import {ActivatedRoute, Router, CanActivate} from '@angular/router';
 import {
-    Http,
-    Response,
-    Headers,
-    Request,
-    RequestMethod,
-    RequestOptions,
-    RequestOptionsArgs
+  Http,
+  Response,
+  Headers,
+  Request,
+  RequestMethod,
+  RequestOptions,
+  RequestOptionsArgs
 } from '@angular/http';
 
-import { Observable } from 'rxjs/Observable';
+import {Observable} from 'rxjs/Observable';
 import 'rxjs/add/operator/share';
 import 'rxjs/add/observable/interval';
 import 'rxjs/add/observable/fromEvent';
 import 'rxjs/add/operator/pluck';
 import 'rxjs/add/operator/filter';
 
+import {InAppBrowser, InAppBrowserEvent} from '@ionic-native/in-app-browser';
+import { Platform } from 'ionic-angular';
+
+
 import {
-    SignInData,
-    RegisterData,
-    UpdatePasswordData,
-    ResetPasswordData,
+  SignInData,
+  RegisterData,
+  UpdatePasswordData,
+  ResetPasswordData,
 
-    UserType,
-    UserData,
-    AuthData,
+  UserType,
+  UserData,
+  AuthData,
 
-    Angular2TokenOptions
+  Angular2TokenOptions
 } from './angular2-token.model';
 
 @Injectable()
 export class Angular2TokenService implements CanActivate {
 
-    get currentUserType(): string {
-        if (this.atCurrentUserType != null)
-            return this.atCurrentUserType.name;
-        else
-            return null;
+  get currentUserType(): string {
+    if (this.atCurrentUserType != null)
+      return this.atCurrentUserType.name;
+    else
+      return null;
+  }
+
+  get currentUserData(): UserData {
+    return this.atCurrentUserData;
+  }
+
+  get currentAuthData(): AuthData {
+    return this.atCurrentAuthData;
+  }
+
+  get currentAuthHeaders(): Headers {
+    if (this.atCurrentAuthData != null) {
+      return new Headers({
+        'access-token': this.atCurrentAuthData.accessToken,
+        'client': this.atCurrentAuthData.client,
+        'expiry': this.atCurrentAuthData.expiry,
+        'token-type': this.atCurrentAuthData.tokenType,
+        'uid': this.atCurrentAuthData.uid
+      });
     }
 
-    get currentUserData(): UserData {
-        return this.atCurrentUserData;
-    }
+    return new Headers;
+  }
 
-    get currentAuthData(): AuthData {
-        return this.atCurrentAuthData;
-    }
+  private atOptions: Angular2TokenOptions;
+  private atCurrentUserType: UserType;
+  private atCurrentAuthData: AuthData;
+  private atCurrentUserData: UserData;
 
-    get currentAuthHeaders(): Headers {
-        if (this.atCurrentAuthData != null) {
-            return new Headers({
-                'access-token': this.atCurrentAuthData.accessToken,
-                'client':       this.atCurrentAuthData.client,
-                'expiry':       this.atCurrentAuthData.expiry,
-                'token-type':   this.atCurrentAuthData.tokenType,
-                'uid':          this.atCurrentAuthData.uid
-            });
+  constructor(private http: Http,
+              private iab: InAppBrowser,
+              public platform: Platform,
+              @Optional() private activatedRoute: ActivatedRoute,
+              @Optional() private router: Router) {
+  }
+
+  userSignedIn(): boolean {
+    return !!this.atCurrentAuthData;
+  }
+
+  canActivate(): boolean {
+    if (this.userSignedIn())
+      return true;
+    else {
+      // Store current location in storage (usefull for redirection after signing in)
+      if (this.atOptions.signInStoredUrlStorageKey) {
+        localStorage.setItem(
+          this.atOptions.signInStoredUrlStorageKey,
+          window.location.pathname + window.location.search
+        );
+      }
+
+      // Redirect user to sign in if signInRedirect is set
+      if (this.router && this.atOptions.signInRedirect)
+        this.router.navigate([this.atOptions.signInRedirect]);
+
+      return false;
+    }
+  }
+
+  // Inital configuration
+  init(options?: Angular2TokenOptions) {
+
+    let defaultOptions: Angular2TokenOptions = {
+      apiPath: null,
+      apiBase: null,
+
+      signInPath: 'auth/sign_in',
+      signInRedirect: null,
+      signInStoredUrlStorageKey: null,
+
+      signOutPath: 'auth/sign_out',
+      validateTokenPath: 'auth/validate_token',
+      signOutFailedValidate: false,
+
+      registerAccountPath: 'auth',
+      deleteAccountPath: 'auth',
+      registerAccountCallback: window.location.href,
+
+      updatePasswordPath: 'auth',
+
+      resetPasswordPath: 'auth/password',
+      resetPasswordCallback: window.location.href,
+
+      userTypes: null,
+
+      oAuthBase: window.location.origin,
+      oAuthPaths: {
+        github: 'auth/github'
+      },
+      oAuthCallbackPath: 'oauth_callback',
+      oAuthWindowType: 'newWindow',
+      oAuthWindowOptions: null,
+
+      globalOptions: {
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
         }
+      }
+    };
 
-        return new Headers;
+    this.atOptions = (<any>Object).assign(defaultOptions, options);
+
+    this.tryLoadAuthData();
+  }
+
+  /**
+   *
+   * Actions
+   *
+   */
+
+  // Register request
+  registerAccount(registerData: RegisterData): Observable<Response> {
+
+    if (registerData.userType == null)
+      this.atCurrentUserType = null;
+    else {
+      this.atCurrentUserType = this.getUserTypeByName(registerData.userType);
+      delete registerData.userType;
     }
 
-    private atOptions: Angular2TokenOptions;
-    private atCurrentUserType: UserType;
-    private atCurrentAuthData: AuthData;
-    private atCurrentUserData: UserData;
+    registerData.password_confirmation = registerData.passwordConfirmation;
+    delete registerData.passwordConfirmation;
 
-    constructor(
-        private http: Http,
-        @Optional() private activatedRoute: ActivatedRoute,
-        @Optional() private router: Router
-    ) { }
+    registerData.confirm_success_url = this.atOptions.registerAccountCallback;
 
-    userSignedIn(): boolean {
-        return !!this.atCurrentAuthData;
-    }
+    return this.post(this.getUserPath() + this.atOptions.registerAccountPath, JSON.stringify(registerData));
+  }
 
-    canActivate(): boolean {
-        if (this.userSignedIn())
-            return true;
-        else {
-            // Store current location in storage (usefull for redirection after signing in)
-            if (this.atOptions.signInStoredUrlStorageKey) {
-                localStorage.setItem(
-                    this.atOptions.signInStoredUrlStorageKey,
-                    window.location.pathname + window.location.search
-                );
-            }
+  // Delete Account
+  deleteAccount(): Observable<Response> {
+    return this.delete(this.getUserPath() + this.atOptions.deleteAccountPath);
+  }
 
-            // Redirect user to sign in if signInRedirect is set
-            if(this.router && this.atOptions.signInRedirect)
-                this.router.navigate([this.atOptions.signInRedirect]);
+  // Sign in request and set storage
+  signIn(signInData: SignInData): Observable<Response> {
 
-            return false;
+    if (signInData.userType == null)
+      this.atCurrentUserType = null;
+    else
+      this.atCurrentUserType = this.getUserTypeByName(signInData.userType);
+
+    let body = JSON.stringify({
+      email: signInData.email,
+      password: signInData.password
+    });
+
+    let observ = this.post(this.getUserPath() + this.atOptions.signInPath, body);
+
+    observ.subscribe(res => this.atCurrentUserData = res.json().data, _error => null);
+
+    return observ;
+  }
+
+  signInOAuth(oAuthType: string) {
+
+    let oAuthPath: string = this.getOAuthPath(oAuthType);
+    let callbackUrl: string = `${window.location.origin}/${this.atOptions.oAuthCallbackPath}`;
+    let oAuthWindowType: string = this.atOptions.oAuthWindowType;
+    let authUrl: string = this.getOAuthUrl(oAuthPath, callbackUrl, oAuthWindowType);
+
+    if (oAuthWindowType == 'newWindow' || (oAuthWindowType=='inAppBrowser' && !(this.platform.is('ios') || this.platform.is('android')))) {
+      let oAuthWindowOptions = this.atOptions.oAuthWindowOptions;
+      let windowOptions = '';
+
+      if (oAuthWindowOptions) {
+        for (let key in oAuthWindowOptions) {
+          windowOptions += `,${key}=${oAuthWindowOptions[key]}`;
         }
-    }
+      }
 
-    // Inital configuration
-    init(options?: Angular2TokenOptions) {
+      let popup = window.open(
+        authUrl,
+        '_blank',
+        `closebuttoncaption=Cancel${windowOptions}`
+      );
+      return this.requestCredentialsViaPostMessage(popup);
+    } else if (oAuthWindowType == 'inAppBrowser') {
+      let oAuthWindowOptions = this.atOptions.oAuthWindowOptions;
+      let windowOptions = '';
 
-        let defaultOptions: Angular2TokenOptions = {
-            apiPath:                    null,
-            apiBase:                    null,
+      if (oAuthWindowOptions) {
+        for (let key in oAuthWindowOptions) {
+          windowOptions += `,${key}=${oAuthWindowOptions[key]}`;
+        }
+      }
 
-            signInPath:                 'auth/sign_in',
-            signInRedirect:             null,
-            signInStoredUrlStorageKey:  null,
+      let browser = this.iab.create(
+        authUrl,
+        '_blank',
+        'location=no'
+      );
+      browser.on('loadstop').subscribe((ev: InAppBrowserEvent) => {
+        if (0 === ev.url.indexOf('URL HERE')) {
+          browser.executeScript({code: "requestCredentials();"})
+            .then((credentials) => {
+              // alert(JSON.stringify(credentials[0]));
+              this.getAuthDataFromPostMessage(credentials[0]);
 
-            signOutPath:                'auth/sign_out',
-            validateTokenPath:          'auth/validate_token',
-            signOutFailedValidate:      false,
+              let pollerObserv = Observable.interval(400);
 
-            registerAccountPath:        'auth',
-            deleteAccountPath:          'auth',
-            registerAccountCallback:    window.location.href,
-
-            updatePasswordPath:         'auth',
-
-            resetPasswordPath:          'auth/password',
-            resetPasswordCallback:      window.location.href,
-
-            userTypes:                  null,
-
-            oAuthBase:                  window.location.origin,
-            oAuthPaths: {
-                github:                 'auth/github'
-            },
-            oAuthCallbackPath:          'oauth_callback',
-            oAuthWindowType:            'newWindow',
-            oAuthWindowOptions:         null,
-
-            globalOptions: {
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept':       'application/json'
+              let pollerSubscription = pollerObserv.subscribe(() => {
+                if(this.userSignedIn()){
+                  pollerSubscription.unsubscribe();
+                  browser.close();
                 }
-            }
-        };
+              });
 
-        this.atOptions = (<any>Object).assign(defaultOptions, options);
-
-        this.tryLoadAuthData();
-    }
-
-    /**
-     *
-     * Actions
-     *
-     */
-
-    // Register request
-    registerAccount(registerData: RegisterData): Observable<Response> {
-
-        if (registerData.userType == null)
-            this.atCurrentUserType = null;
-        else {
-            this.atCurrentUserType = this.getUserTypeByName(registerData.userType);
-            delete registerData.userType;
+            })
         }
 
-        registerData.password_confirmation  = registerData.passwordConfirmation;
-        delete registerData.passwordConfirmation;
-
-        registerData.confirm_success_url    = this.atOptions.registerAccountCallback;
-
-        return this.post(this.getUserPath() + this.atOptions.registerAccountPath, JSON.stringify(registerData));
+      });
+    } else if (oAuthWindowType == 'sameWindow') {
+      window.location.href = authUrl;
+    } else {
+      throw `Unsupported oAuthWindowType "${oAuthWindowType}"`;
     }
+  }
 
-    // Delete Account
-    deleteAccount(): Observable<Response> {
-        return this.delete(this.getUserPath() + this.atOptions.deleteAccountPath);
-    }
 
-    // Sign in request and set storage
-    signIn(signInData: SignInData): Observable<Response> {
+  processOAuthCallback(): void {
+    this.getAuthDataFromParams();
+  }
 
-        if (signInData.userType == null)
-            this.atCurrentUserType = null;
-        else
-            this.atCurrentUserType = this.getUserTypeByName(signInData.userType);
+  // Sign out request and delete storage
+  signOut(): Observable<Response> {
+    let observ = this.delete(this.getUserPath() + this.atOptions.signOutPath);
 
-        let body = JSON.stringify({
-            email:      signInData.email,
-            password:   signInData.password
-        });
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('client');
+    localStorage.removeItem('expiry');
+    localStorage.removeItem('tokenType');
+    localStorage.removeItem('uid');
 
-        let observ = this.post(this.getUserPath() + this.atOptions.signInPath, body);
+    this.atCurrentAuthData = null;
+    this.atCurrentUserType = null;
+    this.atCurrentUserData = null;
 
-        observ.subscribe(res => this.atCurrentUserData = res.json().data, _error => null);
+    return observ;
+  }
 
-        return observ;
-    }
+  // Validate token request
+  validateToken(): Observable<Response> {
+    let observ = this.get(this.getUserPath() + this.atOptions.validateTokenPath);
 
-    signInOAuth(oAuthType: string) {
-
-        let oAuthPath: string = this.getOAuthPath(oAuthType);
-        let callbackUrl: string = `${window.location.origin}/${this.atOptions.oAuthCallbackPath}`;
-        let oAuthWindowType: string = this.atOptions.oAuthWindowType;
-        let authUrl: string = this.getOAuthUrl(oAuthPath, callbackUrl, oAuthWindowType);
-
-        if (oAuthWindowType == 'newWindow') {
-            let oAuthWindowOptions = this.atOptions.oAuthWindowOptions;
-            let windowOptions = '';
-
-            if (oAuthWindowOptions) {
-                for (let key in oAuthWindowOptions) {
-                    windowOptions += `,${key}=${oAuthWindowOptions[key]}`;
-                }
-            }
-
-            let popup = window.open(
-                authUrl,
-                '_blank',
-                `closebuttoncaption=Cancel${windowOptions}`
-            );
-            return this.requestCredentialsViaPostMessage(popup);
-        } else if (oAuthWindowType == 'sameWindow') {
-            window.location.href = authUrl;
-        } else {
-            throw `Unsupported oAuthWindowType "${oAuthWindowType}"`;
+    observ.subscribe(
+      res => this.atCurrentUserData = res.json().data,
+      error => {
+        if (error.status === 401 && this.atOptions.signOutFailedValidate) {
+          this.signOut();
         }
+      });
+
+    return observ;
+  }
+
+  // Update password request
+  updatePassword(updatePasswordData: UpdatePasswordData): Observable<Response> {
+
+    if (updatePasswordData.userType != null)
+      this.atCurrentUserType = this.getUserTypeByName(updatePasswordData.userType);
+
+    let args: any;
+
+    if (updatePasswordData.passwordCurrent == null) {
+      args = {
+        password: updatePasswordData.password,
+        password_confirmation: updatePasswordData.passwordConfirmation
+      }
+    } else {
+      args = {
+        current_password: updatePasswordData.passwordCurrent,
+        password: updatePasswordData.password,
+        password_confirmation: updatePasswordData.passwordConfirmation
+      };
     }
 
-    processOAuthCallback(): void {
-        this.getAuthDataFromParams();
+    if (updatePasswordData.resetPasswordToken) {
+      args.reset_password_token = updatePasswordData.resetPasswordToken;
     }
 
-    // Sign out request and delete storage
-    signOut(): Observable<Response> {
-        let observ = this.delete(this.getUserPath() + this.atOptions.signOutPath);
+    let body = JSON.stringify(args);
+    return this.put(this.getUserPath() + this.atOptions.updatePasswordPath, body);
+  }
 
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('client');
-        localStorage.removeItem('expiry');
-        localStorage.removeItem('tokenType');
-        localStorage.removeItem('uid');
+  // Reset password request
+  resetPassword(resetPasswordData: ResetPasswordData): Observable<Response> {
 
-        this.atCurrentAuthData = null;
-        this.atCurrentUserType = null;
-        this.atCurrentUserData = null;
+    if (resetPasswordData.userType == null)
+      this.atCurrentUserType = null;
+    else
+      this.atCurrentUserType = this.getUserTypeByName(resetPasswordData.userType);
 
-        return observ;
+    let body = JSON.stringify({
+      email: resetPasswordData.email,
+      redirect_url: this.atOptions.resetPasswordCallback
+    });
+
+    return this.post(this.getUserPath() + this.atOptions.resetPasswordPath, body);
+  }
+
+  /**
+   *
+   * HTTP Wrappers
+   *
+   */
+
+  get(url: string, options?: RequestOptionsArgs): Observable<Response> {
+    return this.request(this.mergeRequestOptionsArgs({
+      url: this.getApiPath() + url,
+      method: RequestMethod.Get
+    }, options));
+  }
+
+  post(url: string, body: any, options?: RequestOptionsArgs): Observable<Response> {
+    return this.request(this.mergeRequestOptionsArgs({
+      url: this.getApiPath() + url,
+      method: RequestMethod.Post,
+      body: body
+    }, options));
+  }
+
+  put(url: string, body: any, options?: RequestOptionsArgs): Observable<Response> {
+    return this.request(this.mergeRequestOptionsArgs({
+      url: this.getApiPath() + url,
+      method: RequestMethod.Put,
+      body: body
+    }, options));
+  }
+
+  delete(url: string, options?: RequestOptionsArgs): Observable<Response> {
+    return this.request(this.mergeRequestOptionsArgs({
+      url: this.getApiPath() + url,
+      method: RequestMethod.Delete
+    }, options));
+  }
+
+  patch(url: string, body: any, options?: RequestOptionsArgs): Observable<Response> {
+    return this.request(this.mergeRequestOptionsArgs({
+      url: this.getApiPath() + url,
+      method: RequestMethod.Patch,
+      body: body
+    }, options));
+  }
+
+  head(path: string, options?: RequestOptionsArgs): Observable<Response> {
+    return this.request({
+      method: RequestMethod.Head,
+      url: this.getApiPath() + path
+    });
+  }
+
+  options(url: string, options?: RequestOptionsArgs): Observable<Response> {
+    return this.request(this.mergeRequestOptionsArgs({
+      url: this.getApiPath() + url,
+      method: RequestMethod.Options
+    }, options));
+  }
+
+  // Construct and send Http request
+  request(options: RequestOptionsArgs): Observable<Response> {
+
+    let baseRequestOptions: RequestOptions;
+    let baseHeaders: { [key: string]: string; } = this.atOptions.globalOptions.headers;
+
+    // Get auth data from local storage
+    this.getAuthDataFromStorage();
+
+    // Merge auth headers to request if set
+    if (this.atCurrentAuthData != null) {
+      (<any>Object).assign(baseHeaders, {
+        'access-token': this.atCurrentAuthData.accessToken,
+        'client': this.atCurrentAuthData.client,
+        'expiry': this.atCurrentAuthData.expiry,
+        'token-type': this.atCurrentAuthData.tokenType,
+        'uid': this.atCurrentAuthData.uid
+      });
     }
 
-    // Validate token request
-    validateToken(): Observable<Response> {
-        let observ = this.get(this.getUserPath() + this.atOptions.validateTokenPath);
+    baseRequestOptions = new RequestOptions({
+      headers: new Headers(baseHeaders)
+    });
 
-        observ.subscribe(
-            res => this.atCurrentUserData = res.json().data,
-            error => {
-                if (error.status === 401 && this.atOptions.signOutFailedValidate) {
-                    this.signOut();
-                }
-            });
+    // Merge standard and custom RequestOptions
+    baseRequestOptions = baseRequestOptions.merge(options);
 
-        return observ;
-    }
+    let response = this.http.request(new Request(baseRequestOptions)).share();
+    this.handleResponse(response);
 
-    // Update password request
-    updatePassword(updatePasswordData: UpdatePasswordData): Observable<Response> {
+    return response;
+  }
 
-        if (updatePasswordData.userType != null)
-            this.atCurrentUserType = this.getUserTypeByName(updatePasswordData.userType);
+  private mergeRequestOptionsArgs(options: RequestOptionsArgs, addOptions?: RequestOptionsArgs): RequestOptionsArgs {
 
-        let args: any;
+    let returnOptions: RequestOptionsArgs = options;
 
-        if (updatePasswordData.passwordCurrent == null) {
-            args = {
-                password:               updatePasswordData.password,
-                password_confirmation:  updatePasswordData.passwordConfirmation
-            }
-        } else {
-            args = {
-                current_password:       updatePasswordData.passwordCurrent,
-                password:               updatePasswordData.password,
-                password_confirmation:  updatePasswordData.passwordConfirmation
-            };
-        }
+    if (options)
+      (<any>Object).assign(returnOptions, addOptions);
 
-        if (updatePasswordData.resetPasswordToken) {
-            args.reset_password_token = updatePasswordData.resetPasswordToken;
-        }
+    return returnOptions;
+  }
 
-        let body = JSON.stringify(args);
-        return this.put(this.getUserPath() + this.atOptions.updatePasswordPath, body);
-    }
+  // Check if response is complete and newer, then update storage
+  private handleResponse(response: Observable<Response>): void {
+    response.subscribe(res => {
+      this.getAuthHeadersFromResponse(<any>res);
+    }, error => {
+      this.getAuthHeadersFromResponse(<any>error);
+    });
+  }
 
-    // Reset password request
-    resetPassword(resetPasswordData: ResetPasswordData): Observable<Response> {
+  /**
+   *
+   * Get Auth Data
+   *
+   */
 
-        if (resetPasswordData.userType == null)
-            this.atCurrentUserType = null;
-        else
-            this.atCurrentUserType = this.getUserTypeByName(resetPasswordData.userType);
+  // Try to load auth data
+  private tryLoadAuthData(): void {
 
-        let body = JSON.stringify({
-            email:          resetPasswordData.email,
-            redirect_url:   this.atOptions.resetPasswordCallback
-        });
+    let userType = this.getUserTypeByName(localStorage.getItem('userType'));
 
-        return this.post(this.getUserPath() + this.atOptions.resetPasswordPath, body);
-    }
+    if (userType)
+      this.atCurrentUserType = userType;
 
-    /**
-     *
-     * HTTP Wrappers
-     *
-     */
+    this.getAuthDataFromStorage();
 
-    get(url: string, options?: RequestOptionsArgs): Observable<Response> {
-        return this.request(this.mergeRequestOptionsArgs({
-            url:    this.getApiPath() + url,
-            method: RequestMethod.Get
-        }, options));
-    }
+    if (this.activatedRoute)
+      this.getAuthDataFromParams();
 
-    post(url: string, body: any, options?: RequestOptionsArgs): Observable<Response> {
-        return this.request(this.mergeRequestOptionsArgs({
-            url:    this.getApiPath() + url,
-            method: RequestMethod.Post,
-            body:   body
-        }, options));
-    }
+    if (this.atCurrentAuthData)
+      this.validateToken();
+  }
 
-    put(url: string, body: any, options?: RequestOptionsArgs): Observable<Response> {
-        return this.request(this.mergeRequestOptionsArgs({
-            url:    this.getApiPath() + url,
-            method: RequestMethod.Put,
-            body:   body
-        }, options));
-    }
+  // Parse Auth data from response
+  private getAuthHeadersFromResponse(data: any): void {
+    let headers = data.headers;
 
-    delete(url: string, options?: RequestOptionsArgs): Observable<Response> {
-        return this.request(this.mergeRequestOptionsArgs({
-            url:    this.getApiPath() + url,
-            method: RequestMethod.Delete
-        }, options));
-    }
+    let authData: AuthData = {
+      accessToken: headers.get('access-token'),
+      client: headers.get('client'),
+      expiry: headers.get('expiry'),
+      tokenType: headers.get('token-type'),
+      uid: headers.get('uid')
+    };
 
-    patch(url: string, body: any, options?: RequestOptionsArgs): Observable<Response> {
-        return this.request(this.mergeRequestOptionsArgs({
-            url:    this.getApiPath() + url,
-            method: RequestMethod.Patch,
-            body:   body
-        }, options));
-    }
+    this.setAuthData(authData);
+  }
 
-    head(path: string, options?: RequestOptionsArgs): Observable<Response> {
-        return this.request({
-            method: RequestMethod.Head,
-            url:    this.getApiPath() + path
-        });
-    }
+  // Parse Auth data from post message
+  private getAuthDataFromPostMessage(data: any): void {
+    let authData: AuthData = {
+      accessToken: data['auth_token'],
+      client: data['client_id'],
+      expiry: data['expiry'],
+      tokenType: 'Bearer',
+      uid: data['uid']
+    };
 
-    options(url: string, options?: RequestOptionsArgs): Observable<Response> {
-        return this.request(this.mergeRequestOptionsArgs({
-            url:    this.getApiPath() + url,
-            method: RequestMethod.Options
-        }, options));
-    }
+    this.setAuthData(authData);
+  }
 
-    // Construct and send Http request
-    request(options: RequestOptionsArgs): Observable<Response> {
+  // Try to get auth data from storage.
+  private getAuthDataFromStorage(): void {
 
-        let baseRequestOptions: RequestOptions;
-        let baseHeaders:        { [key:string]: string; } = this.atOptions.globalOptions.headers;
+    let authData: AuthData = {
+      accessToken: localStorage.getItem('accessToken'),
+      client: localStorage.getItem('client'),
+      expiry: localStorage.getItem('expiry'),
+      tokenType: localStorage.getItem('tokenType'),
+      uid: localStorage.getItem('uid')
+    };
 
-        // Get auth data from local storage
-        this.getAuthDataFromStorage();
-        
-        // Merge auth headers to request if set
-        if (this.atCurrentAuthData != null) {
-            (<any>Object).assign(baseHeaders, {
-                'access-token': this.atCurrentAuthData.accessToken,
-                'client':       this.atCurrentAuthData.client,
-                'expiry':       this.atCurrentAuthData.expiry,
-                'token-type':   this.atCurrentAuthData.tokenType,
-                'uid':          this.atCurrentAuthData.uid
-            });
-        }
+    if (this.checkAuthData(authData))
+      this.atCurrentAuthData = authData;
+  }
 
-        baseRequestOptions = new RequestOptions({
-            headers: new Headers(baseHeaders)
-        });
-
-        // Merge standard and custom RequestOptions
-        baseRequestOptions = baseRequestOptions.merge(options);
-
-        let response = this.http.request(new Request(baseRequestOptions)).share();
-        this.handleResponse(response);
-
-        return response;
-    }
-
-    private mergeRequestOptionsArgs(options: RequestOptionsArgs, addOptions?: RequestOptionsArgs): RequestOptionsArgs {
-
-        let returnOptions: RequestOptionsArgs = options;
-
-        if (options)
-            (<any>Object).assign(returnOptions, addOptions);
-
-        return returnOptions;
-    }
-
-    // Check if response is complete and newer, then update storage
-    private handleResponse(response: Observable<Response>): void {
-        response.subscribe(res => {
-            this.getAuthHeadersFromResponse(<any>res);
-        }, error => {
-            this.getAuthHeadersFromResponse(<any>error);
-        });
-    }
-
-    /**
-     *
-     * Get Auth Data
-     *
-     */
-
-    // Try to load auth data
-    private tryLoadAuthData(): void {
-
-        let userType = this.getUserTypeByName(localStorage.getItem('userType'));
-
-        if (userType)
-            this.atCurrentUserType = userType;
-
-        this.getAuthDataFromStorage();
-
-        if(this.activatedRoute)
-            this.getAuthDataFromParams();
-
-        if (this.atCurrentAuthData)
-            this.validateToken();
-    }
-
-    // Parse Auth data from response
-    private getAuthHeadersFromResponse(data: any): void {
-        let headers = data.headers;
-
+  // Try to get auth data from url parameters.
+  private getAuthDataFromParams(): void {
+    if (this.activatedRoute.queryParams) // Fix for Testing, needs to be removed later
+      this.activatedRoute.queryParams.subscribe(queryParams => {
         let authData: AuthData = {
-            accessToken:    headers.get('access-token'),
-            client:         headers.get('client'),
-            expiry:         headers.get('expiry'),
-            tokenType:      headers.get('token-type'),
-            uid:            headers.get('uid')
-        };
-
-        this.setAuthData(authData);
-    }
-
-    // Parse Auth data from post message
-    private getAuthDataFromPostMessage(data: any): void {
-        let authData: AuthData = {
-            accessToken:    data['auth_token'],
-            client:         data['client_id'],
-            expiry:         data['expiry'],
-            tokenType:      'Bearer',
-            uid:            data['uid']
-        };
-
-        this.setAuthData(authData);
-    }
-
-    // Try to get auth data from storage.
-    private getAuthDataFromStorage(): void {
-
-        let authData: AuthData = {
-            accessToken:    localStorage.getItem('accessToken'),
-            client:         localStorage.getItem('client'),
-            expiry:         localStorage.getItem('expiry'),
-            tokenType:      localStorage.getItem('tokenType'),
-            uid:            localStorage.getItem('uid')
+          accessToken: queryParams['token'] || queryParams['auth_token'],
+          client: queryParams['client_id'],
+          expiry: queryParams['expiry'],
+          tokenType: 'Bearer',
+          uid: queryParams['uid']
         };
 
         if (this.checkAuthData(authData))
-            this.atCurrentAuthData = authData;
+          this.atCurrentAuthData = authData;
+      });
+  }
+
+  /**
+   *
+   * Set Auth Data
+   *
+   */
+
+  // Write auth data to storage
+  private setAuthData(authData: AuthData): void {
+
+    if (this.checkAuthData(authData)) {
+
+      this.atCurrentAuthData = authData;
+
+      localStorage.setItem('accessToken', authData.accessToken);
+      localStorage.setItem('client', authData.client);
+      localStorage.setItem('expiry', authData.expiry);
+      localStorage.setItem('tokenType', authData.tokenType);
+      localStorage.setItem('uid', authData.uid);
+
+      if (this.atCurrentUserType != null)
+        localStorage.setItem('userType', this.atCurrentUserType.name);
+
     }
+  }
 
-    // Try to get auth data from url parameters.
-    private getAuthDataFromParams(): void {
-        if(this.activatedRoute.queryParams) // Fix for Testing, needs to be removed later
-            this.activatedRoute.queryParams.subscribe(queryParams => {
-                let authData: AuthData = {
-                    accessToken:    queryParams['token'] || queryParams['auth_token'],
-                    client:         queryParams['client_id'],
-                    expiry:         queryParams['expiry'],
-                    tokenType:      'Bearer',
-                    uid:            queryParams['uid']
-                };
+  /**
+   *
+   * Validate Auth Data
+   *
+   */
 
-                if (this.checkAuthData(authData))
-                    this.atCurrentAuthData = authData;
-            });
+  // Check if auth data complete and if response token is newer
+  private checkAuthData(authData: AuthData): boolean {
+
+    if (
+      authData.accessToken != null &&
+      authData.client != null &&
+      authData.expiry != null &&
+      authData.tokenType != null &&
+      authData.uid != null
+    ) {
+      if (this.atCurrentAuthData != null)
+        return authData.expiry >= this.atCurrentAuthData.expiry;
+      else
+        return true;
+    } else {
+      return false;
     }
+  }
 
-    /**
-     *
-     * Set Auth Data
-     *
-     */
+  /**
+   *
+   * Construct Paths / Urls
+   *
+   */
 
-    // Write auth data to storage
-    private setAuthData(authData: AuthData): void {
+  private getUserPath(): string {
+    if (this.atCurrentUserType == null)
+      return '';
+    else
+      return this.atCurrentUserType.path + '/';
+  }
 
-        if (this.checkAuthData(authData)) {
+  private getApiPath(): string {
+    let constructedPath = '';
 
-            this.atCurrentAuthData = authData;
+    if (this.atOptions.apiBase != null)
+      constructedPath += this.atOptions.apiBase + '/';
 
-            localStorage.setItem('accessToken', authData.accessToken);
-            localStorage.setItem('client', authData.client);
-            localStorage.setItem('expiry', authData.expiry);
-            localStorage.setItem('tokenType', authData.tokenType);
-            localStorage.setItem('uid', authData.uid);
+    if (this.atOptions.apiPath != null)
+      constructedPath += this.atOptions.apiPath + '/';
 
-            if (this.atCurrentUserType != null)
-                localStorage.setItem('userType', this.atCurrentUserType.name);
+    return constructedPath;
+  }
 
-        }
-    }
+  private getOAuthPath(oAuthType: string): string {
+    let oAuthPath: string;
 
-    /**
-     *
-     * Validate Auth Data
-     *
-     */
+    oAuthPath = this.atOptions.oAuthPaths[oAuthType];
 
-    // Check if auth data complete and if response token is newer
-    private checkAuthData(authData: AuthData): boolean {
+    if (oAuthPath == null)
+      oAuthPath = `/auth/${oAuthType}`;
 
-        if (
-            authData.accessToken != null &&
-            authData.client != null &&
-            authData.expiry != null &&
-            authData.tokenType != null &&
-            authData.uid != null
-        ) {
-            if (this.atCurrentAuthData != null)
-                return authData.expiry >= this.atCurrentAuthData.expiry;
-            else
-                return true;
-        } else {
-            return false;
-        }
-    }
+    return oAuthPath;
+  }
 
-    /**
-     *
-     * Construct Paths / Urls
-     *
-     */
+  private getOAuthUrl(oAuthPath: string, callbackUrl: string, windowType: string): string {
+    let url: string;
 
-    private getUserPath(): string {
-        if (this.atCurrentUserType == null)
-            return '';
-        else
-            return this.atCurrentUserType.path + '/';
-    }
+    url = `${this.atOptions.oAuthBase}/${oAuthPath}`;
+    url += `?omniauth_window_type=${windowType}`;
+    url += `&auth_origin_url=${encodeURIComponent(callbackUrl)}`;
 
-    private getApiPath(): string {
-        let constructedPath = '';
+    if (this.atCurrentUserType != null)
+      url += `&resource_class=${this.atCurrentUserType.name}`;
 
-        if (this.atOptions.apiBase != null)
-            constructedPath += this.atOptions.apiBase + '/';
+    return url;
+  }
 
-        if (this.atOptions.apiPath != null)
-            constructedPath += this.atOptions.apiPath + '/';
+  /**
+   *
+   * OAuth
+   *
+   */
 
-        return constructedPath;
-    }
+  private requestCredentialsViaPostMessage(authWindow: any): Observable<any> {
+    let pollerObserv = Observable.interval(500);
 
-    private getOAuthPath(oAuthType: string): string {
-        let oAuthPath: string;
+    let responseObserv = Observable.fromEvent(window, 'message').pluck('data')
+      .filter(this.oAuthWindowResponseFilter);
 
-        oAuthPath = this.atOptions.oAuthPaths[oAuthType];
+    let responseSubscription = responseObserv.subscribe(
+      this.getAuthDataFromPostMessage.bind(this)
+    );
 
-        if (oAuthPath == null)
-            oAuthPath = `/auth/${oAuthType}`;
+    let pollerSubscription = pollerObserv.subscribe(() => {
+      if (authWindow.closed)
+        pollerSubscription.unsubscribe();
+      else
+        authWindow.postMessage('requestCredentials', '*');
+    });
 
-        return oAuthPath;
-    }
+    return responseObserv;
+  }
 
-    private getOAuthUrl(oAuthPath: string, callbackUrl: string, windowType: string): string {
-        let url: string;
+  private oAuthWindowResponseFilter(data: any): any {
+    if (data.message == 'deliverCredentials' || data.message == 'authFailure')
+      return data;
+  }
 
-        url =   `${this.atOptions.oAuthBase}/${oAuthPath}`;
-        url +=  `?omniauth_window_type=${windowType}`;
-        url +=  `&auth_origin_url=${encodeURIComponent(callbackUrl)}`;
+  /**
+   *
+   * Utilities
+   *
+   */
 
-        if (this.atCurrentUserType != null)
-            url += `&resource_class=${this.atCurrentUserType.name}`;
+  // Match user config by user config name
+  private getUserTypeByName(name: string): UserType {
+    if (name == null || this.atOptions.userTypes == null)
+      return null;
 
-        return url;
-    }
-
-    /**
-     *
-     * OAuth
-     *
-     */
-
-    private requestCredentialsViaPostMessage(authWindow: any): Observable<any> {
-        let pollerObserv = Observable.interval(500);
-
-        let responseObserv = Observable.fromEvent(window, 'message').pluck('data')
-            .filter(this.oAuthWindowResponseFilter);
-
-        let responseSubscription = responseObserv.subscribe(
-            this.getAuthDataFromPostMessage.bind(this)
-        );
-
-        let pollerSubscription = pollerObserv.subscribe(() => {
-            if (authWindow.closed)
-                pollerSubscription.unsubscribe();
-            else
-                authWindow.postMessage('requestCredentials', '*');
-        });
-
-        return responseObserv;
-    }
-
-    private oAuthWindowResponseFilter(data: any): any {
-        if(data.message == 'deliverCredentials' || data.message == 'authFailure')
-            return data;
-    }
-
-    /**
-     *
-     * Utilities
-     *
-     */
-
-    // Match user config by user config name
-    private getUserTypeByName(name: string): UserType {
-        if (name == null || this.atOptions.userTypes == null)
-            return null;
-
-        return this.atOptions.userTypes.find(
-            userType => userType.name === name
-        );
-    }
+    return this.atOptions.userTypes.find(
+      userType => userType.name === name
+    );
+  }
 }

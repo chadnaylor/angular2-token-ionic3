@@ -1,7 +1,7 @@
 {
-  "name": "angular2-token",
-  "version": "0.2.0-beta.12",
-  "description": "Angular2 service for token based authentication",
+  "name": "angular2-token-ionic3",
+  "version": "0.0.1",
+  "description": "Angular2 service for token based authentication with Ionic 3 Framework",
   "main": "./angular2-token.js",
   "typings": "./angular2-token.d.ts",
   "scripts": {
@@ -10,6 +10,8 @@
     "prepublish": "npm run build"
   },
   "keywords": [
+    "ionic 3",
+    "oauth",
     "angular2",
     "devise token auth",
     "token authentication"
@@ -63,14 +65,18 @@
     "webpack": "3.4.1",
     "zone.js": "0.8.16"
   },
-  "author": "Jan-Philipp Riethmacher <neroniaky@gmail.com>",
+  "author": "Chad Naylor <chad.naylor@gmail.com>",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/neroniaky/angular2-token.git"
+    "url": "git+https://github.com/chadnaylor/angular2-token-ionic3.git"
   },
   "bugs": {
-    "url": "https://github.com/neroniaky/angular2-token/issues"
+    "url": "https://github.com/chadnaylor/angular2-token-ionic3/issues"
   },
-  "homepage": "https://github.com/neroniaky/angular2-token#readme"
+  "homepage": "https://github.com/chadnaylor/angular2-token-ionic3#readme",
+  "dependencies": {
+    "@ionic-native/in-app-browser": "^4.2.1",
+    "ionic-angular": "^3.6.1"
+  }
 }
